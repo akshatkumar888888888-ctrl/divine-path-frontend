@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+*.exe
+*.pdf
+*.zip
+*.gif
+*.mp4
+desktop.ini
+index.js
+server.ts
+package-lock.json

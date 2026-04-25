@@ -1,0 +1,6 @@
+{
+  "name": "SecureID Login System",
+  "description": "A robust login portal for users and administrators using unique identifiers and passwords, featuring role-based redirection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
