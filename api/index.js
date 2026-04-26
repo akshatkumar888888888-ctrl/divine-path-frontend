@@ -24,4 +24,4 @@ module.exports = async function handler(req, res) {
     return res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
   }
   return res.status(404).json({ error: 'Not found' });
-}s
+}
