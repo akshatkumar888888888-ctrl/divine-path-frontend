@@ -7,6 +7,5 @@ dist
 *.gif
 *.mp4
 desktop.ini
-index.js
 server.ts
 package-lock.json
