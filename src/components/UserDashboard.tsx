@@ -26,6 +26,7 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [flash, setFlash] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 3000); };
 
@@ -33,18 +34,37 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
     const token = localStorage.getItem('token');
     fetch(`${import.meta.env.VITE_API_URL}/api/student/${user.id}`, {
       headers: { Authorization: `Bearer ${token}` },
-    }).then((r) => r.json()).then((d) => { setData(d); setLoading(false); });
+    }).then((r) => r.json()).then((d) => {
+      setData(d);
+      setLoading(false);
+      const lastSeen = localStorage.getItem('lastSeenAnnouncement');
+      if (d.announcements && d.announcements.length > 0) {
+        if (!lastSeen) {
+          setUnreadCount(d.announcements.length);
+        } else {
+          const idx = d.announcements.findIndex((a: any) => a.id === lastSeen);
+          setUnreadCount(idx === -1 ? d.announcements.length : idx);
+        }
+      }
+    });
+  };
+
+  const markAnnouncementsRead = () => {
+    if (data?.announcements?.length > 0) {
+      localStorage.setItem('lastSeenAnnouncement', data.announcements[0].id);
+      setUnreadCount(0);
+    }
   };
 
   useEffect(() => {
     fetchData();
     const channel = supabase.channel(`student-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('✅ Attendance updated!'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'fees', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('💰 Fees updated!'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'results', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('📊 Results updated!'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => { fetchData(); showFlash('📢 New announcement!'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => { fetchData(); showFlash('📚 New material!'); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable' }, () => { fetchData(); showFlash('🕐 Timetable updated!'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('Attendance updated!'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fees', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('Fees updated!'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'results', filter: `student_id=eq.${user.id}` }, () => { fetchData(); showFlash('Results updated!'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => { fetchData(); showFlash('New announcement!'); setUnreadCount(c => c + 1); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => { fetchData(); showFlash('New material!'); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable' }, () => { fetchData(); showFlash('Timetable updated!'); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user.id]);
@@ -80,7 +100,7 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
     <div style={{ minHeight: '100vh', background: theme.bg }}>
       {flash && (
         <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 50, background: theme.primary, color: 'white', padding: '12px 20px', borderRadius: 16, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(212,101,26,0.4)' }}>
-          ⚡ {flash}
+          {flash}
         </div>
       )}
 
@@ -92,9 +112,12 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
         </div>
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {navItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'all 0.2s', background: activeTab === item.id ? theme.primary : 'transparent', color: activeTab === item.id ? 'white' : theme.textMuted }}>
+            <button key={item.id} onClick={() => { setActiveTab(item.id); if (item.id === 'announcements') markAnnouncementsRead(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'all 0.2s', background: activeTab === item.id ? theme.primary : 'transparent', color: activeTab === item.id ? 'white' : theme.textMuted, position: 'relative' }}>
               {item.icon}{item.label}
+              {item.id === 'announcements' && unreadCount > 0 && (
+                <span style={{ marginLeft: 'auto', background: '#CC3333', color: 'white', borderRadius: '50%', width: 18, height: 18, fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -109,9 +132,18 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
           <img src="/logo.png" alt="logo" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
           <span style={{ fontWeight: 700, fontSize: 15, color: theme.primary }}>Divine Path</span>
         </div>
-        <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}>
-          <LogOut className="w-5 h-5" />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => { setActiveTab('announcements'); markAnnouncementsRead(); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative', padding: 4 }}>
+            <Bell style={{ width: 20, height: 20, color: theme.primary }} />
+            {unreadCount > 0 && (
+              <span style={{ position: 'absolute', top: -2, right: -2, background: '#CC3333', color: 'white', borderRadius: '50%', width: 16, height: 16, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount}</span>
+            )}
+          </button>
+          <button onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}>
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -119,7 +151,7 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
         <div className="md:pt-8" style={{ padding: '16px' }}>
           <header style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: theme.text }}>Welcome, {user.name}</h1>
-            <p style={{ fontSize: 11, color: theme.textMuted, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1 }}>ID: {user.id} • {data.profile?.batch}</p>
+            <p style={{ fontSize: 11, color: theme.textMuted, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1 }}>ID: {user.id} - {data.profile?.batch}</p>
           </header>
 
           {activeTab === 'overview' && (
@@ -130,7 +162,10 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
                 <StatCard title="Avg Marks" value={data.results?.length ? `${Math.round(data.results.reduce((s: number, r: any) => s + (r.marks / r.total_marks) * 100, 0) / data.results.length)}%` : 'N/A'} sub="all subjects" color="#1a7a1a" />
               </div>
               <div style={card}>
-                <h3 style={{ fontWeight: 700, fontSize: 16, color: theme.text, marginBottom: 12 }}>Latest Announcements</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3 style={{ fontWeight: 700, fontSize: 16, color: theme.text }}>Latest Announcements</h3>
+                  {unreadCount > 0 && <span style={{ background: '#CC3333', color: 'white', borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{unreadCount} new</span>}
+                </div>
                 {data.announcements?.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No announcements yet.</p>}
                 {data.announcements?.slice(0, 3).map((a: any) => (
                   <div key={a.id} style={{ background: theme.primaryLight, borderRadius: 12, padding: '12px 14px', marginBottom: 8, borderLeft: `3px solid ${theme.primary}` }}>
@@ -239,7 +274,7 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
               {data.timetable?.map((t: any) => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
                   <div>
-                    <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{t.day} — {t.subject}</p>
+                    <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{t.day} - {t.subject}</p>
                     <p style={{ fontSize: 12, color: theme.textMuted }}>{t.teacher}</p>
                   </div>
                   <span style={{ fontSize: 12, color: theme.textMuted }}>{t.time}</span>
@@ -267,10 +302,13 @@ export default function UserDashboard({ user, onLogout }: DashboardProps) {
       {/* Mobile Bottom Navigation */}
       <div className="md:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: `1px solid ${theme.primaryBorder}`, zIndex: 40, display: 'flex' }}>
         {navItems.map((item) => (
-          <button key={item.id} onClick={() => setActiveTab(item.id)}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', gap: 2, fontSize: 9, fontWeight: 600, border: 'none', cursor: 'pointer', background: 'transparent', color: activeTab === item.id ? theme.primary : '#9e9e9e' }}>
-            <div style={{ padding: 6, borderRadius: 10, background: activeTab === item.id ? theme.primaryLight : 'transparent', color: activeTab === item.id ? theme.primary : '#9e9e9e' }}>
+          <button key={item.id} onClick={() => { setActiveTab(item.id); if (item.id === 'announcements') markAnnouncementsRead(); }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', gap: 2, fontSize: 9, fontWeight: 600, border: 'none', cursor: 'pointer', background: 'transparent', color: activeTab === item.id ? theme.primary : '#9e9e9e', position: 'relative' }}>
+            <div style={{ padding: 6, borderRadius: 10, background: activeTab === item.id ? theme.primaryLight : 'transparent', color: activeTab === item.id ? theme.primary : '#9e9e9e', position: 'relative' }}>
               {item.icon}
+              {item.id === 'announcements' && unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: -2, right: -2, background: '#CC3333', color: 'white', borderRadius: '50%', width: 14, height: 14, fontSize: 8, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount}</span>
+              )}
             </div>
             {item.label}
           </button>
