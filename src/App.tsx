@@ -1,8 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SplashScreen from './components/SplashScreen';
 import { AnimatePresence, motion } from 'motion/react';
 import LoginPage from './components/LoginPage';
@@ -15,19 +11,29 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [showSplash, setShowSplash] = useState(true);
 
-  const handleLogin = (id: string, role: UserRole) => {
-    const mockUser: User = {
+  useEffect(() => {
+    const savedUser = localStorage.getItem('divinePathUser');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  const handleLogin = (id: string, role: UserRole, name?: string) => {
+    const loggedUser: User = {
       id,
       role,
-      name: role === 'admin' ? 'System Administrator' : id,
+      name: name || (role === 'admin' ? 'System Administrator' : id),
     };
-    setUser(mockUser);
+    setUser(loggedUser);
     setIsLoggedIn(true);
+    localStorage.setItem('divinePathUser', JSON.stringify(loggedUser));
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
     setUser(null);
+    localStorage.removeItem('divinePathUser');
   };
 
   if (showSplash) {
