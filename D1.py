@@ -34,8 +34,27 @@ p=100
 print(not s>p)
 print(s>p and p<s)
 print( s>p or  p==s)
-hus="akshat"
-wif="sonali"
-wed=hus==wif
-print(hus and wif)
-print(hus==wif or wif==wed)
+
+let=float("2")
+# print(type(let))
+# print(10+let)
+
+# #input
+# name=input("nam kya h appka?: ")
+# print(name)
+# #find the type of your input
+# inputs=input(type("apka no: "))
+# print(input)
+# #write a program to input two no. and print their sum
+# num1=float(input("aap ka phela no.:"))
+# num2=float(input("aap ka dushra no:"))
+# # print(num1+num2)
+# #take input the area and find suare area 
+# side=int(input("length of side(in cm) :"))
+# print("area of square:",side**2)
+# num1=float(input("first no.:"))
+# num2=float(input("second no."))
+# print("mean :", (num1+num2)/2)
+a=int(input("num01:"))
+b=int(input("num02:"))
+print(a>=b)
