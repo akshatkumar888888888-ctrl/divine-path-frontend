@@ -1,16 +1,36 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
+const webpush = require('web-push');
 
 const SUPABASE_URL = 'https://mcitvidfhwwetcqjmgsb.supabase.co';
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jaXR2aWRmaHd3ZXRjcWptZ3NiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjY2OTAyNiwiZXhwIjoyMDkyMjQ1MDI2fQ.mZbJpaJ65m0I1q_fY6pgylldZ-bhKsQCCvwssRa6MOY';
 const JWT_SECRET = 'secureid_super_secret_key_2026';
+const VAPID_PUBLIC_KEY = 'BNKO5JLihsy96mBjBx9xZEFvkzpwin5zAkL_3xvVMhr24NxxvS2X2V9LfZzjHVOErThsum2FiqZhbLGUHgUQ1v8';
+const VAPID_PRIVATE_KEY = 'vDIrzhxthLROOao_ZDklR45Ja_OocA1tUCUQPn5xdfo';
+
+webpush.setVapidDetails('mailto:akshatkumar888888888@gmail.com', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 function verify(authHeader) {
   if (!authHeader) throw new Error('No token');
   return jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+}
+
+async function sendPushToAll(title, message) {
+  const { data: subs } = await supabase.from('push_subscriptions').select('*');
+  if (!subs) return;
+  const payload = JSON.stringify({ title, message });
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(sub.subscription, payload);
+    } catch (e) {
+      if (e.statusCode === 410) {
+        await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+      }
+    }
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -29,6 +49,16 @@ module.exports = async function handler(req, res) {
     if (!ok) return res.status(401).json({ error: 'Invalid ID or password' });
     const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
     return res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+  }
+
+  if (req.method === 'POST' && url === '/subscribe') {
+    const { user_id, subscription } = req.body;
+    await supabase.from('push_subscriptions').upsert({ user_id, subscription }, { onConflict: 'user_id' });
+    return res.json({ success: true });
+  }
+
+  if (req.method === 'GET' && url === '/vapid-public-key') {
+    return res.json({ key: VAPID_PUBLIC_KEY });
   }
 
   let u;
@@ -157,6 +187,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'POST' && url === '/admin/announcements') {
     const { title, message } = req.body;
     await supabase.from('announcements').insert({ title, message });
+    await sendPushToAll(title, message);
     return res.json({ success: true });
   }
   if (req.method === 'DELETE' && url.startsWith('/admin/announcements/')) {
