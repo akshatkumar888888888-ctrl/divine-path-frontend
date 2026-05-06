@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
     if (error || !user) return res.status(401).json({ error: 'Invalid ID or password' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid ID or password' });
-    const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '8h' });
+    const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
     return res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
   }
 
