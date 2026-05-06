@@ -6,6 +6,15 @@ import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import { User, UserRole } from './types';
 
+function isTokenValid(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -13,9 +22,13 @@ export default function App() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('divinePathUser');
-    if (savedUser) {
+    const token = localStorage.getItem('token');
+    if (savedUser && token && isTokenValid(token)) {
       setUser(JSON.parse(savedUser));
       setIsLoggedIn(true);
+    } else {
+      localStorage.removeItem('divinePathUser');
+      localStorage.removeItem('token');
     }
   }, []);
 
@@ -34,6 +47,7 @@ export default function App() {
     setIsLoggedIn(false);
     setUser(null);
     localStorage.removeItem('divinePathUser');
+    localStorage.removeItem('token');
   };
 
   if (showSplash) {
