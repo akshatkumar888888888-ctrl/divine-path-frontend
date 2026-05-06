@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { LogOut, LayoutDashboard, Users, Bell, BookOpen, Calendar, BarChart3, Plus, Trash2, CheckCircle, XCircle, Search, ChevronDown, Menu, X } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, Bell, BookOpen, Calendar, BarChart3, Plus, Trash2, CheckCircle, XCircle, Search, ChevronDown, Menu, X, Upload } from 'lucide-react';
 import { User } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -55,7 +55,7 @@ function StudentSelect({ students, value, onChange, placeholder = 'Select Studen
             ) : filtered.map((s: any) => (
               <button key={s.id} type="button" onClick={() => { onChange(s.id); setOpen(false); setSearch(''); }}
                 style={{ width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: 13, border: 'none', cursor: 'pointer', background: value === s.id ? theme.primaryLight : 'transparent', color: value === s.id ? theme.primary : theme.text }}>
-                {s.name} <span style={{ color: theme.textMuted, fontSize: 11 }}>({s.id}) • {s.batch}</span>
+                {s.name} <span style={{ color: theme.textMuted, fontSize: 11 }}>({s.id}) - {s.batch}</span>
               </button>
             ))}
           </div>
@@ -86,6 +86,9 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
   const [newResult, setNewResult] = useState({ student_id: '', subject: '', marks: '', total_marks: '', exam_date: '' });
   const [newAttendance, setNewAttendance] = useState({ student_id: '', date: '', present: true });
   const [newTimetable, setNewTimetable] = useState({ day: '', subject: '', time: '', teacher: '' });
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvResult, setCsvResult] = useState<string | null>(null);
+  const csvRef = useRef<HTMLInputElement>(null);
 
   const token = localStorage.getItem('token');
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 3000); };
@@ -115,7 +118,42 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
   useEffect(() => { if (selectedStudent) fetchAttendance(selectedStudent, selectedMonth); }, [selectedStudent, selectedMonth]);
   useEffect(() => { if (selectedFeeStudent) fetchFees(selectedFeeStudent); }, [selectedFeeStudent]);
 
-  const addStudent = async () => { const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(newStudent) }); if (res.ok) { setNewStudent({ id: '', name: '', batch: '', phone: '', password: '' }); fetchStudents(); showFlash('Student added!'); } };
+  const addStudent = async () => {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(newStudent) });
+    if (res.ok) { setNewStudent({ id: '', name: '', batch: '', phone: '', password: '' }); fetchStudents(); showFlash('Student added!'); }
+  };
+
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvLoading(true);
+    setCsvResult(null);
+    const text = await file.text();
+    const lines = text.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    let success = 0;
+    let failed = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      const student: any = {};
+      headers.forEach((h, idx) => { student[h] = values[idx] || ''; });
+      if (!student.id || !student.name || !student.password) { failed++; continue; }
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id: student.id, name: student.name, batch: student.batch || '', phone: student.phone || '', password: student.password }),
+        });
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
+    }
+    setCsvLoading(false);
+    setCsvResult(`Done! ${success} added, ${failed} failed.`);
+    fetchStudents();
+    showFlash(`CSV: ${success} students added!`);
+    if (csvRef.current) csvRef.current.value = '';
+  };
+
   const deleteStudent = async (id: string) => { await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); fetchStudents(); showFlash('Student deleted!'); };
   const toggleAttendance = async (record: any) => { await fetch(`${import.meta.env.VITE_API_URL}/api/admin/attendance/${record.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ present: !record.present }) }); fetchAttendance(selectedStudent, selectedMonth); showFlash('Attendance updated!'); };
   const addAttendance = async () => { await fetch(`${import.meta.env.VITE_API_URL}/api/admin/attendance`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(newAttendance) }); fetchAttendance(selectedStudent, selectedMonth); showFlash('Attendance marked!'); };
@@ -153,13 +191,11 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
 
   return (
     <div style={{ minHeight: '100vh', background: theme.bg }}>
-      {flash && <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 50, background: theme.primary, color: 'white', padding: '12px 20px', borderRadius: 16, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(212,101,26,0.4)' }}>⚡ {flash}</div>}
+      {flash && <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 50, background: theme.primary, color: 'white', padding: '12px 20px', borderRadius: 16, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(212,101,26,0.4)' }}>{flash}</div>}
 
-      {/* Mobile overlay */}
       {sidebarOpen && <div className="md:hidden" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} onClick={() => setSidebarOpen(false)} />}
 
-      {/* Sidebar */}
-      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 240, background: 'white', borderRight: `1px solid ${theme.primaryBorder}`, display: 'flex', flexDirection: 'column', padding: 20, gap: 24, zIndex: 50, transform: sidebarOpen ? 'translateX(0)' : undefined, transition: 'transform 0.3s' }}
+      <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 240, background: 'white', borderRight: `1px solid ${theme.primaryBorder}`, display: 'flex', flexDirection: 'column', padding: 20, gap: 24, zIndex: 50, transition: 'transform 0.3s' }}
         className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -173,7 +209,6 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
             <X size={18} />
           </button>
         </div>
-
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
           {navItems.map((item) => (
             <button key={item.id} onClick={() => { setActiveTab(item.id); setSidebarOpen(false); }}
@@ -182,13 +217,11 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
             </button>
           ))}
         </nav>
-
         <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, border: `1px solid #ffcccc`, cursor: 'pointer', fontSize: 13, fontWeight: 600, background: '#fff5f5', color: '#CC3333' }}>
           <LogOut size={18} />Logout
         </button>
       </div>
 
-      {/* Mobile Top Bar */}
       <div className="md:hidden" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: 'white', borderBottom: `1px solid ${theme.primaryBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40 }}>
         <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}>
           <Menu size={22} />
@@ -197,12 +230,11 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
         <div style={{ width: 22 }} />
       </div>
 
-      {/* Main */}
       <div className="md:ml-60" style={{ paddingTop: 64, paddingBottom: 20 }}>
         <div style={{ padding: 16 }}>
           <header style={{ marginBottom: 20 }}>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: theme.text }}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h1>
-            <p style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>Divine Path Admin • Live updates ⚡</p>
+            <p style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>Divine Path Admin - Live updates</p>
           </header>
 
           {activeTab === 'overview' && (
@@ -227,6 +259,33 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                 </div>
                 <button onClick={addStudent} style={{ ...btn, marginTop: 12 }}>Add Student</button>
               </div>
+
+              <div style={card}>
+                <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 8 }}>Bulk Import via CSV</h3>
+                <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
+                  CSV format: <strong>id, name, batch, phone, password</strong> (first row = headers)
+                </p>
+                <div style={{ border: `2px dashed ${theme.primaryBorder}`, borderRadius: 12, padding: 20, textAlign: 'center', background: theme.primaryLight }}>
+                  <Upload size={24} color={theme.primary} style={{ marginBottom: 8 }} />
+                  <p style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>Click to upload CSV file</p>
+                  <input ref={csvRef} type="file" accept=".csv" onChange={handleCSVUpload} style={{ display: 'none' }} id="csv-upload" />
+                  <label htmlFor="csv-upload" style={{ ...btn, cursor: 'pointer', display: 'inline-block' }}>
+                    {csvLoading ? 'Uploading...' : 'Choose CSV File'}
+                  </label>
+                </div>
+                {csvResult && (
+                  <div style={{ marginTop: 12, padding: '10px 14px', background: '#d4edda', borderRadius: 12, fontSize: 13, color: '#1a7a1a', fontWeight: 600 }}>
+                    {csvResult}
+                  </div>
+                )}
+                <div style={{ marginTop: 12, padding: '10px 14px', background: theme.bg, borderRadius: 12, fontSize: 12, color: theme.textMuted }}>
+                  <p style={{ fontWeight: 600, marginBottom: 4 }}>Example CSV:</p>
+                  <code style={{ fontSize: 11 }}>id,name,batch,phone,password</code><br />
+                  <code style={{ fontSize: 11 }}>stu001,Rahul Sharma,2024,9876543210,pass123</code><br />
+                  <code style={{ fontSize: 11 }}>stu002,Priya Singh,2024,9876543211,pass456</code>
+                </div>
+              </div>
+
               <div style={card}>
                 <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12 }}>All Students ({students.length})</h3>
                 {students.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No students yet.</p>}
@@ -234,7 +293,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
                     <div>
                       <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{s.name}</p>
-                      <p style={{ fontSize: 11, color: theme.textMuted }}>ID: {s.id} • {s.batch} • {s.phone}</p>
+                      <p style={{ fontSize: 11, color: theme.textMuted }}>ID: {s.id} - {s.batch} - {s.phone}</p>
                     </div>
                     <button onClick={() => deleteStudent(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
                   </div>
@@ -302,7 +361,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <button onClick={() => toggleFeePaid(f)} style={{ padding: '4px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: f.paid ? '#d4edda' : '#f8d7da', color: f.paid ? '#1a7a1a' : '#CC3333' }}>
-                            {f.paid ? 'Paid ✅' : 'Due ❌'}
+                            {f.paid ? 'Paid' : 'Due'}
                           </button>
                           <button onClick={() => deleteFee(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
                         </div>
@@ -342,7 +401,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                 {results.map((r: any) => (
                   <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
                     <div>
-                      <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{r.students?.name} — {r.subject}</p>
+                      <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{r.students?.name} - {r.subject}</p>
                       <p style={{ fontSize: 11, color: theme.textMuted }}>{r.exam_date}</p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -365,7 +424,6 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                   <input placeholder="PDF URL or Google Drive link" value={newMaterial.file_url} onChange={(e) => setNewMaterial({ ...newMaterial, file_url: e.target.value })} style={{ ...input, gridColumn: '1 / -1' }} />
                 </div>
                 <button onClick={addMaterial} style={{ ...btn, marginTop: 12 }}>Add Material</button>
-                <p style={{ fontSize: 11, color: theme.textMuted, marginTop: 8 }}>Tip: Upload to Google Drive → Share → Copy link → Paste here</p>
               </div>
               <div style={card}>
                 <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12 }}>All Materials ({materials.length})</h3>
@@ -407,8 +465,8 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                 {timetable.map((t: any) => (
                   <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
                     <div>
-                      <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{t.day} — {t.subject}</p>
-                      <p style={{ fontSize: 11, color: theme.textMuted }}>{t.teacher} • {t.time}</p>
+                      <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{t.day} - {t.subject}</p>
+                      <p style={{ fontSize: 11, color: theme.textMuted }}>{t.teacher} - {t.time}</p>
                     </div>
                     <button onClick={() => deleteTimetable(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
                   </div>
