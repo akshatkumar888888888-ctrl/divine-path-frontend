@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { LogOut, LayoutDashboard, Users, Bell, BookOpen, Calendar, BarChart3, Plus, Trash2, CheckCircle, XCircle, Search, ChevronDown, Menu, X, Upload } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, Bell, BookOpen, Calendar, BarChart3, Plus, Trash2, CheckCircle, XCircle, Search, ChevronDown, Menu, X, Upload, AlertTriangle, TrendingUp } from 'lucide-react';
 import { User } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -89,6 +89,12 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvResult, setCsvResult] = useState<string | null>(null);
   const csvRef = useRef<HTMLInputElement>(null);
+  const [selectedBatch, setSelectedBatch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [allAttendance, setAllAttendance] = useState<any[]>([]);
+  const [allFees, setAllFees] = useState<any[]>([]);
 
   const token = localStorage.getItem('token');
   const showFlash = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 3000); };
@@ -131,19 +137,14 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
     const text = await file.text();
     const lines = text.trim().split('\n');
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    let success = 0;
-    let failed = 0;
+    let success = 0; let failed = 0;
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim());
       const student: any = {};
       headers.forEach((h, idx) => { student[h] = values[idx] || ''; });
       if (!student.id || !student.name || !student.password) { failed++; continue; }
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ id: student.id, name: student.name, batch: student.batch || '', phone: student.phone || '', password: student.password }),
-        });
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/students`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: student.id, name: student.name, batch: student.batch || '', phone: student.phone || '', password: student.password }) });
         if (res.ok) success++; else failed++;
       } catch { failed++; }
     }
@@ -174,6 +175,17 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
   const attendancePct = attendance.length ? Math.round((presentCount / attendance.length) * 100) : 0;
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+  const batches = [...new Set(students.map(s => s.batch).filter(Boolean))].sort();
+  const filteredStudents = students
+    .filter(s => !selectedBatch || s.batch === selectedBatch)
+    .filter(s => !studentSearch || s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.id.toLowerCase().includes(studentSearch.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'id') return a.id.localeCompare(b.id);
+      if (sortBy === 'batch') return (a.batch || '').localeCompare(b.batch || '');
+      return 0;
+    });
+
   const navItems = [
     { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} /> },
     { id: 'students', label: 'Students', icon: <Users size={18} /> },
@@ -191,7 +203,41 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
 
   return (
     <div style={{ minHeight: '100vh', background: theme.bg }}>
-      {flash && <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 50, background: theme.primary, color: 'white', padding: '12px 20px', borderRadius: 16, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(212,101,26,0.4)' }}>{flash}</div>}
+      {flash && <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 100, background: theme.primary, color: 'white', padding: '12px 20px', borderRadius: 16, fontSize: 13, fontWeight: 600, boxShadow: '0 4px 20px rgba(212,101,26,0.4)' }}>{flash}</div>}
+
+      {selectedProfile && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setSelectedProfile(null)}>
+          <div style={{ background: 'white', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ fontWeight: 800, fontSize: 18, color: theme.text }}>{selectedProfile.name}</h3>
+              <button onClick={() => setSelectedProfile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}><X size={20} /></button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+              <div style={{ background: theme.primaryLight, borderRadius: 12, padding: 12 }}>
+                <p style={{ fontSize: 11, color: theme.textMuted }}>Student ID</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: theme.text }}>{selectedProfile.id}</p>
+              </div>
+              <div style={{ background: theme.primaryLight, borderRadius: 12, padding: 12 }}>
+                <p style={{ fontSize: 11, color: theme.textMuted }}>Batch/Class</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: theme.text }}>{selectedProfile.batch || 'N/A'}</p>
+              </div>
+              <div style={{ background: theme.primaryLight, borderRadius: 12, padding: 12 }}>
+                <p style={{ fontSize: 11, color: theme.textMuted }}>Phone</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: theme.text }}>{selectedProfile.phone || 'N/A'}</p>
+              </div>
+              <div style={{ background: theme.primaryLight, borderRadius: 12, padding: 12 }}>
+                <p style={{ fontSize: 11, color: theme.textMuted }}>Results</p>
+                <p style={{ fontWeight: 700, fontSize: 14, color: theme.text }}>{results.filter(r => r.student_id === selectedProfile.id).length} exams</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => { setSelectedStudent(selectedProfile.id); setActiveTab('attendance'); setSelectedProfile(null); }} style={{ ...btn, flex: 1, fontSize: 12, padding: '8px 12px' }}>View Attendance</button>
+              <button onClick={() => { setSelectedFeeStudent(selectedProfile.id); setActiveTab('fees'); setSelectedProfile(null); }} style={{ ...btn, flex: 1, fontSize: 12, padding: '8px 12px', background: '#1a5fa0' }}>View Fees</button>
+            </div>
+            <button onClick={() => { deleteStudent(selectedProfile.id); setSelectedProfile(null); }} style={{ width: '100%', marginTop: 10, padding: '8px', background: '#fff0f0', border: '1px solid #ffcccc', borderRadius: 12, color: '#CC3333', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete Student</button>
+          </div>
+        </div>
+      )}
 
       {sidebarOpen && <div className="md:hidden" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 40 }} onClick={() => setSidebarOpen(false)} />}
 
@@ -205,9 +251,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
               <p style={{ fontSize: 10, color: theme.textMuted }}>Admin Panel</p>
             </div>
           </div>
-          <button className="md:hidden" onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}>
-            <X size={18} />
-          </button>
+          <button className="md:hidden" onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}><X size={18} /></button>
         </div>
         <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
           {navItems.map((item) => (
@@ -223,9 +267,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
       </div>
 
       <div className="md:hidden" style={{ position: 'fixed', top: 0, left: 0, right: 0, background: 'white', borderBottom: `1px solid ${theme.primaryBorder}`, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 40 }}>
-        <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}>
-          <Menu size={22} />
-        </button>
+        <button onClick={() => setSidebarOpen(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted }}><Menu size={22} /></button>
         <span style={{ fontWeight: 700, fontSize: 16, color: theme.primary }}>Admin Panel</span>
         <div style={{ width: 22 }} />
       </div>
@@ -238,11 +280,53 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
           </header>
 
           {activeTab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <ACard label="Students" value={students.length} color={theme.primary} />
-              <ACard label="Materials" value={materials.length} color="#7c3aed" />
-              <ACard label="Announcements" value={announcements.length} color="#1a5fa0" />
-              <ACard label="Status" value="Online" color="#1a7a1a" />
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 16 }}>
+                <ACard label="Total Students" value={students.length} color={theme.primary} />
+                <ACard label="Materials" value={materials.length} color="#7c3aed" />
+                <ACard label="Announcements" value={announcements.length} color="#1a5fa0" />
+                <ACard label="Status" value="Online" color="#1a7a1a" />
+              </div>
+
+              {batches.length > 0 && (
+                <div style={card}>
+                  <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12 }}>Students by Batch</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                    {batches.map(batch => (
+                      <div key={batch} style={{ background: theme.primaryLight, borderRadius: 12, padding: 12, textAlign: 'center', cursor: 'pointer', border: `1px solid ${theme.primaryBorder}` }}
+                        onClick={() => { setSelectedBatch(batch); setActiveTab('students'); }}>
+                        <p style={{ fontSize: 20, fontWeight: 800, color: theme.primary }}>{students.filter(s => s.batch === batch).length}</p>
+                        <p style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>{batch}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={card}>
+                <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertTriangle size={16} color="#CC3333" /> Fee Defaulters
+                </h3>
+                {results.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>Loading...</p>}
+                <p style={{ fontSize: 12, color: theme.textMuted }}>Go to Fees tab to check individual student fees</p>
+              </div>
+
+              <div style={card}>
+                <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={16} color="#1a7a1a" /> Recent Results
+                </h3>
+                {results.slice(0, 5).map((r: any) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: theme.primaryLight, borderRadius: 10, marginBottom: 6 }}>
+                    <div>
+                      <p style={{ fontWeight: 600, fontSize: 13, color: theme.text }}>{r.students?.name} - {r.subject}</p>
+                      <p style={{ fontSize: 11, color: theme.textMuted }}>{r.exam_date}</p>
+                    </div>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: Math.round((r.marks / r.total_marks) * 100) >= 75 ? '#1a7a1a' : '#CC3333' }}>
+                      {Math.round((r.marks / r.total_marks) * 100)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -262,9 +346,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
 
               <div style={card}>
                 <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 8 }}>Bulk Import via CSV</h3>
-                <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>
-                  CSV format: <strong>id, name, batch, phone, password</strong> (first row = headers)
-                </p>
+                <p style={{ fontSize: 12, color: theme.textMuted, marginBottom: 12 }}>CSV format: <strong>id, name, batch, phone, password</strong></p>
                 <div style={{ border: `2px dashed ${theme.primaryBorder}`, borderRadius: 12, padding: 20, textAlign: 'center', background: theme.primaryLight }}>
                   <Upload size={24} color={theme.primary} style={{ marginBottom: 8 }} />
                   <p style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>Click to upload CSV file</p>
@@ -273,29 +355,51 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                     {csvLoading ? 'Uploading...' : 'Choose CSV File'}
                   </label>
                 </div>
-                {csvResult && (
-                  <div style={{ marginTop: 12, padding: '10px 14px', background: '#d4edda', borderRadius: 12, fontSize: 13, color: '#1a7a1a', fontWeight: 600 }}>
-                    {csvResult}
-                  </div>
-                )}
-                <div style={{ marginTop: 12, padding: '10px 14px', background: theme.bg, borderRadius: 12, fontSize: 12, color: theme.textMuted }}>
-                  <p style={{ fontWeight: 600, marginBottom: 4 }}>Example CSV:</p>
-                  <code style={{ fontSize: 11 }}>id,name,batch,phone,password</code><br />
-                  <code style={{ fontSize: 11 }}>stu001,Rahul Sharma,2024,9876543210,pass123</code><br />
-                  <code style={{ fontSize: 11 }}>stu002,Priya Singh,2024,9876543211,pass456</code>
-                </div>
+                {csvResult && <div style={{ marginTop: 12, padding: '10px 14px', background: '#d4edda', borderRadius: 12, fontSize: 13, color: '#1a7a1a', fontWeight: 600 }}>{csvResult}</div>}
               </div>
 
               <div style={card}>
-                <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12 }}>All Students ({students.length})</h3>
-                {students.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No students yet.</p>}
-                {students.map((s: any) => (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text }}>All Students ({filteredStudents.length}/{students.length})</h3>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted }} />
+                    <input placeholder="Search..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} style={{ ...input, paddingLeft: 30 }} />
+                  </div>
+                  <select value={selectedBatch} onChange={(e) => setSelectedBatch(e.target.value)} style={input}>
+                    <option value="">All Batches</option>
+                    {batches.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={input}>
+                    <option value="name">Sort by Name</option>
+                    <option value="id">Sort by ID</option>
+                    <option value="batch">Sort by Batch</option>
+                  </select>
+                </div>
+
+                {batches.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <button onClick={() => setSelectedBatch('')} style={{ padding: '4px 12px', borderRadius: 20, border: `1px solid ${theme.primaryBorder}`, background: !selectedBatch ? theme.primary : 'transparent', color: !selectedBatch ? 'white' : theme.textMuted, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>All ({students.length})</button>
+                    {batches.map(b => (
+                      <button key={b} onClick={() => setSelectedBatch(b)} style={{ padding: '4px 12px', borderRadius: 20, border: `1px solid ${theme.primaryBorder}`, background: selectedBatch === b ? theme.primary : 'transparent', color: selectedBatch === b ? 'white' : theme.textMuted, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                        {b} ({students.filter(s => s.batch === b).length})
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {filteredStudents.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No students found.</p>}
+                {filteredStudents.map((s: any) => (
+                  <div key={s.id} onClick={() => setSelectedProfile(s)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8, cursor: 'pointer', transition: 'all 0.2s' }}>
                     <div>
                       <p style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{s.name}</p>
                       <p style={{ fontSize: 11, color: theme.textMuted }}>ID: {s.id} - {s.batch} - {s.phone}</p>
                     </div>
-                    <button onClick={() => deleteStudent(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 8, background: theme.primary + '20', color: theme.primary, fontWeight: 600 }}>{s.batch}</span>
+                      <button onClick={(e) => { e.stopPropagation(); deleteStudent(s.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -317,6 +421,12 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                       <MiniStat label="Present" value={presentCount} color="#1a5fa0" bg="#f0f8ff" />
                       <MiniStat label="Absent" value={absentCount} color="#CC3333" bg="#fff0f0" />
                     </div>
+                    {attendancePct < 75 && attendancePct > 0 && (
+                      <div style={{ background: '#fff0f0', border: '1px solid #ffcccc', borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <AlertTriangle size={16} color="#CC3333" />
+                        <p style={{ fontSize: 13, color: '#CC3333', fontWeight: 600 }}>Low attendance! Below 75% threshold.</p>
+                      </div>
+                    )}
                     {attendance.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No records for this month.</p>}
                     {attendance.map((a: any) => (
                       <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 6 }}>
@@ -353,6 +463,14 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                 {selectedFeeStudent && (
                   <>
                     {fees.length === 0 && <p style={{ color: theme.textMuted, fontSize: 13 }}>No fee records.</p>}
+                    {fees.some(f => !f.paid) && (
+                      <div style={{ background: '#fff0f0', border: '1px solid #ffcccc', borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <AlertTriangle size={16} color="#CC3333" />
+                        <p style={{ fontSize: 13, color: '#CC3333', fontWeight: 600 }}>
+                          Pending: Rs.{fees.filter(f => !f.paid).reduce((s, f) => s + f.amount, 0)}
+                        </p>
+                      </div>
+                    )}
                     {fees.map((f: any) => (
                       <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: theme.primaryLight, borderRadius: 12, marginBottom: 8 }}>
                         <div>
@@ -405,7 +523,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
                       <p style={{ fontSize: 11, color: theme.textMuted }}>{r.exam_date}</p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: theme.primary }}>{r.marks}/{r.total_marks}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: Math.round((r.marks / r.total_marks) * 100) >= 75 ? '#1a7a1a' : '#CC3333' }}>{r.marks}/{r.total_marks}</span>
                       <button onClick={() => deleteResult(r.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#CC3333' }}><Trash2 size={16} /></button>
                     </div>
                   </div>
@@ -480,8 +598,7 @@ export default function AdminDashboard({ user, onLogout }: DashboardProps) {
               <div style={card}>
                 <h3 style={{ fontWeight: 700, fontSize: 15, color: theme.text, marginBottom: 12 }}>Post Announcement</h3>
                 <input placeholder="Title" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })} style={{ ...input, marginBottom: 10 }} />
-                <textarea placeholder="Message" value={newAnnouncement.message} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })} rows={4}
-                  style={{ ...input, resize: 'vertical' }} />
+                <textarea placeholder="Message" value={newAnnouncement.message} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, message: e.target.value })} rows={4} style={{ ...input, resize: 'vertical' }} />
                 <button onClick={addAnnouncement} style={{ ...btn, marginTop: 12 }}>Post Announcement</button>
               </div>
               <div style={card}>
