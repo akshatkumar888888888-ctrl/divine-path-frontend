@@ -1,0 +1,21 @@
+id,name,batch,phone,password
+stu001,Rahul Sharma,2024,9876543210,pass123
+stu002,Priya Singh,2024,9876543211,pass456
+stu003,Amit Kumar,2024,9876543212,pass789
+stu004,Neha Patel,2024,9876543213,passabc
+stu005,Vikram Yadav,2025,9876543214,passdef
+stu006,Anjali Devi,2024,9876543215,passghi
+stu007,Rohan Gupta,2025,9876543216,passjkl
+stu008,Divya Mishra,2024,9876543217,passmno
+stu009,Karan Joshi,2024,9876543218,passpqr
+stu010,Sneha Reddy,2025,9876543219,passstu
+stu011,Arjun Mehta,2024,9876543220,passvwx
+stu012,Pooja Nair,2024,9876543221,passyz1
+stu013,Siddharth Bose,2025,9876543222,passyz2
+stu014,Riya Chakraborty,2024,9876543223,passyz3
+stu015,Manish Thakur,2025,9876543224,passyz4
+stu016,Kavya Iyer,2024,9876543225,passyz5
+stu017,Aditya Verma,2024,9876543226,passyz6
+stu018,Shreya Das,2025,9876543227,passyz7
+stu019,Nikhil Rao,2024,9876543228,passyz8
+stu020,Tanya Khan,2025,9876543229,passyz9

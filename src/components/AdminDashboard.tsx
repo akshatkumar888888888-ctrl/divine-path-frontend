@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LogOut, LayoutDashboard, Users, Bell, BookOpen, Calendar, BarChart3, Plus, Trash2, CheckCircle, XCircle, Search, ChevronDown, Menu, X, Upload, AlertTriangle, TrendingUp } from 'lucide-react';
-import { User } from '../types';
+import AdminChatbot from './AdminChatbot';
 import { supabase } from '../supabaseClient';
 
 interface DashboardProps {
@@ -631,7 +631,7 @@ function ACard({ label, value, color }: any) {
     </div>
   );
 }
-
+<AdminChatbot students={students} results={results} announcements={announcements} materials={materials} timetable={timetable} />
 function MiniStat({ label, value, color, bg }: any) {
   return (
     <div style={{ background: bg, borderRadius: 12, padding: 12, textAlign: 'center' }}>
