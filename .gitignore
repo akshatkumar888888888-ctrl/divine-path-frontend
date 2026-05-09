@@ -6,6 +6,22 @@ dist
 *.zip
 *.gif
 *.mp4
+*.png
+*.jpg
+*.jpeg
+*.mp3
+*.mkv
+*.avi
+*.txt
+*.py
 desktop.ini
 server.ts
 package-lock.json
+elementiq-pro
+1.2 sir book
+temp_dashboard.txt
+admin_full.txt
+StudyWallpaper*
+From*
+Gemini*
+log.*
